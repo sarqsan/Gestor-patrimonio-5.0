@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { AppState, Property } from "../types";
+import { isStaticEnvironment, clientSideOptimizeContract } from "../utils/githubPagesAdapter";
 import { 
   FileText, 
   Download, 
@@ -317,25 +318,42 @@ D./Dña. ${landlordName || "..."}                  D./Dña. ${tenantName || "...
         Devuelve ÚNICAMENTE el texto redactado del contrato de arrendamiento completo y pulido, con un formato de texto limpio y elegante, listo para ser copiado o descargado, respetando la estructura legal clásica: Título, Reunidos, Intervienen, Exponen y Cláusulas detalladas. No incluyas explicaciones adicionales, introducciones ni notas de saludo fuera del contrato.
       `;
 
-      // Call the server API proxy for Gemini model generateContent
-      const response = await fetch("/api/optimize-contract", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contractContext,
-          customPrompt: promptText
-        })
-      });
+      let optimizedText;
 
-      if (!response.ok) {
-        throw new Error("La llamada al servidor de optimización de contratos de IA falló.");
+      if (isStaticEnvironment()) {
+        console.log("Static mode active - routing to client-side contract optimizer");
+        optimizedText = await clientSideOptimizeContract(contractContext, aiPrompt, computeLocalContractText());
+      } else {
+        try {
+          const response = await fetch("/api/optimize-contract", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              contractContext,
+              customPrompt: promptText
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error("La llamada al servidor de optimización de contratos de IA falló.");
+          }
+
+          const data = await response.json();
+          if (data && data.text) {
+            optimizedText = data.text;
+          } else {
+            throw new Error("No se recibió texto optimizado del modelo de IA.");
+          }
+        } catch (fetchErr) {
+          console.warn("Backend contract optimizer failed, falling back to client-side optimizer", fetchErr);
+          optimizedText = await clientSideOptimizeContract(contractContext, aiPrompt, computeLocalContractText());
+        }
       }
 
-      const data = await response.json();
-      if (data && data.text) {
-        setGeneratedContractText(data.text);
+      if (optimizedText) {
+        setGeneratedContractText(optimizedText);
         setIsCustomText(true);
         addSyncEvent(
           "Centro Redacción IA",

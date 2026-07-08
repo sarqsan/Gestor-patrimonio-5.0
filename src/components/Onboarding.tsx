@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { SAMPLE_DECLARATIONS } from "../data/samples";
 import { AppState } from "../types";
+import { isStaticEnvironment, clientSideExtract } from "../utils/githubPagesAdapter";
 import { 
   FileText, 
   Sparkles, 
@@ -246,22 +247,34 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         propertiesFileName: uploadedPropertiesFile ? uploadedPropertiesFile.name : undefined,
       };
 
-      const response = await fetch("/api/extract", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(bodyPayload),
-      });
+      let result;
+
+      if (isStaticEnvironment()) {
+        console.log("Static mode active - routing to client-side extraction");
+        result = await clientSideExtract(bodyPayload);
+      } else {
+        try {
+          const response = await fetch("/api/extract", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(bodyPayload),
+          });
+
+          if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || "No se pudo extraer la información de los documentos.");
+          }
+          result = await response.json();
+        } catch (fetchErr) {
+          console.warn("Backend extraction failed, falling back to client-side extractor", fetchErr);
+          result = await clientSideExtract(bodyPayload);
+        }
+      }
 
       clearInterval(interval);
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "No se pudo extraer la información de los documentos.");
-      }
-
-      const result = await response.json();
       if (result.properties) {
         result.properties = deduplicateProperties(result.properties);
       }
