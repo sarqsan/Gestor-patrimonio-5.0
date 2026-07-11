@@ -32,14 +32,32 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
+// Helper to clean up any markdown wraps in JSON output returned by Gemini
+function cleanJsonText(text: string): string {
+  let cleaned = text.trim();
+  cleaned = cleaned.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  return cleaned;
+}
+
 // Robust retry helper with exponential backoff and model fallback to handle 503 high demand
 async function generateContentWithRetry(
-  contents: any[],
+  contents: any,
   config: any,
   initialModel: string = "gemini-3.5-flash"
 ): Promise<any> {
   const modelsToTry = [initialModel, "gemini-3.5-flash"];
   let lastError: any = null;
+
+  // Format contents to wrap a bare list of Parts into a compliant Content object with a parts array
+  let formattedContents = contents;
+  if (Array.isArray(contents)) {
+    const isBarePartArray = contents.every(item => 
+      item && (item.text !== undefined || item.inlineData !== undefined || item.functionCall !== undefined || item.functionResponse !== undefined)
+    );
+    if (isBarePartArray) {
+      formattedContents = { parts: contents };
+    }
+  }
 
   for (const modelName of modelsToTry) {
     const maxRetries = 3;
@@ -49,7 +67,7 @@ async function generateContentWithRetry(
         const ai = getGeminiClient();
         const response = await ai.models.generateContent({
           model: modelName,
-          contents,
+          contents: formattedContents,
           config,
         });
         console.log(`[Gemini API] Success using model ${modelName} on attempt ${attempt}`);
@@ -268,7 +286,8 @@ Combina y cruza la información de la declaración y del archivo de inmuebles Ex
         throw new Error("No se pudo obtener una respuesta válida del modelo Gemini.");
       }
 
-      const parsedData = JSON.parse(textOutput);
+      const cleanedText = cleanJsonText(textOutput);
+      const parsedData = JSON.parse(cleanedText);
       res.json(parsedData);
     } catch (error: any) {
       console.error("Extraction error:", error);
@@ -337,7 +356,8 @@ Devuelve los importes como números decimales y las fechas en formato YYYY-MM-DD
         throw new Error("No se pudo obtener una respuesta del modelo Gemini para la factura.");
       }
 
-      const parsedData = JSON.parse(textOutput);
+      const cleanedText = cleanJsonText(textOutput);
+      const parsedData = JSON.parse(cleanedText);
       res.json(parsedData);
     } catch (error: any) {
       console.error("Invoice extraction error:", error);

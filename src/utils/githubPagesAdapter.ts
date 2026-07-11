@@ -23,6 +23,13 @@ function parseSpanishNumber(val: string): number {
   return isNaN(num) ? 0 : num;
 }
 
+// Helper to clean up markdown block wraps in client-side JSON parsing
+function cleanClientJsonText(text: string): string {
+  let cleaned = text.trim();
+  cleaned = cleaned.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  return cleaned;
+}
+
 function getJuanSampleResult() {
   return {
     user1: {
@@ -788,7 +795,7 @@ Combina y cruza la información de la declaración y del archivo de inmuebles Ex
 
       const response = await ai.models.generateContent({
         model: "gemini-3.5-flash",
-        contents,
+        contents: { parts: contents },
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -848,7 +855,8 @@ Combina y cruza la información de la declaración y del archivo de inmuebles Ex
       });
 
       if (response && response.text) {
-        return JSON.parse(response.text.trim());
+        const cleanedText = cleanClientJsonText(response.text);
+        return JSON.parse(cleanedText);
       }
     } catch (e) {
       console.error("Client-side Gemini extraction failed, falling back to local fallback: ", e);
@@ -968,16 +976,18 @@ Devuelve los importes como números decimales y las fechas en formato YYYY-MM-DD
 
       const response = await ai.models.generateContent({
         model: "gemini-3.5-flash",
-        contents: [
-          { text: systemPrompt },
-          { text: "--- DOCUMENTO DE RECIBO/FACTURA ---" },
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: fileData
+        contents: {
+          parts: [
+            { text: systemPrompt },
+            { text: "--- DOCUMENTO DE RECIBO/FACTURA ---" },
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: fileData
+              }
             }
-          }
-        ],
+          ]
+        },
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -998,7 +1008,8 @@ Devuelve los importes como números decimales y las fechas en formato YYYY-MM-DD
       });
 
       if (response && response.text) {
-        return JSON.parse(response.text.trim());
+        const cleanedText = cleanClientJsonText(response.text);
+        return JSON.parse(cleanedText);
       }
     } catch (e) {
       console.error("Client-side Gemini invoice extraction failed: ", e);

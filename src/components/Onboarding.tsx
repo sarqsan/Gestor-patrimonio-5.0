@@ -322,7 +322,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       netoTrabajo: Number(previewData.user1?.netoTrabajo || 0),
     };
 
-    const hasPartner = !!previewData.user2?.hasPartner || (previewData.user2?.name && previewData.user2?.name !== "");
+    const rawPartnerName = (previewData.user2?.name || "").toUpperCase().trim();
+    const isPlaceholderPartner = [
+      "", "SEGUNDO PROPIETARIO", "USUARIO 2", "NO ESPECIFICADO", "NO DETECTADO", "NO APLICA"
+    ].includes(rawPartnerName);
+    const hasPartner = !!previewData.user2?.hasPartner && !isPlaceholderPartner;
     const user2Profile = {
       name: previewData.user2?.name || "Usuario 2",
       dni: previewData.user2?.dni || "87654321K",
