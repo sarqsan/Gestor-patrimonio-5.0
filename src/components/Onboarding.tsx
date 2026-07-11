@@ -162,6 +162,29 @@ interface OnboardingProps {
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const [declarationMode, setDeclarationMode] = useState<"conjunta" | "separadas">("conjunta");
+  
+  // Gemini API Key state for GitHub Pages/Static deployment
+  const [geminiKey, setGeminiKey] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("VITE_GEMINI_API_KEY") || "";
+    }
+    return "";
+  });
+  const [showKeySavedAlert, setShowKeySavedAlert] = useState(false);
+
+  const handleSaveGeminiKey = (key: string) => {
+    const trimmed = key.trim();
+    setGeminiKey(trimmed);
+    if (typeof window !== "undefined") {
+      if (trimmed) {
+        localStorage.setItem("VITE_GEMINI_API_KEY", trimmed);
+      } else {
+        localStorage.removeItem("VITE_GEMINI_API_KEY");
+      }
+      setShowKeySavedAlert(true);
+      setTimeout(() => setShowKeySavedAlert(false), 3000);
+    }
+  };
 
   // User 1 / Joint States
   const [pastedText1, setPastedText1] = useState("");
@@ -567,6 +590,46 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         {!previewData && !loading && (
           <div className="space-y-6">
             
+            {/* Gemini API Key configuration for static hostings (optional but recommended) */}
+            <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-700/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-start space-x-3 text-left">
+                <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-lg shrink-0 border border-indigo-500/10 mt-0.5">
+                  <Coins className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-white flex items-center space-x-2">
+                    <span>Clave API de Gemini Personal</span>
+                    <span className="text-[10px] bg-indigo-500/15 text-indigo-400 font-mono font-bold px-2 py-0.5 rounded border border-indigo-500/10">Recomendado</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    Al alojarse en GitHub Pages (entorno estático), puedes introducir tu clave de Gemini de forma 100% segura y local para extraer con IA tus propios documentos en lugar de depender de reglas locales fijas.
+                  </p>
+                </div>
+              </div>
+              <div className="w-full sm:w-auto flex items-center space-x-2 shrink-0">
+                <input
+                  type="password"
+                  value={geminiKey}
+                  onChange={(e) => handleSaveGeminiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full sm:w-48 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSaveGeminiKey(geminiKey)}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+            {showKeySavedAlert && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-emerald-400 text-xs font-semibold flex items-center justify-center space-x-2 animate-fade-in">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Clave API guardada localmente de forma segura. ¡La extracción inteligente por IA está activa!</span>
+              </div>
+            )}
+
             {/* Declaration Mode Selector */}
             <div className="flex bg-slate-950/80 p-1 rounded-xl border border-slate-800/80">
               <button
