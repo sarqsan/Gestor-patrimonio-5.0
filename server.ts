@@ -36,9 +36,9 @@ function getGeminiClient(): GoogleGenAI {
 async function generateContentWithRetry(
   contents: any[],
   config: any,
-  initialModel: string = "gemini-2.5-flash"
+  initialModel: string = "gemini-3.5-flash"
 ): Promise<any> {
-  const modelsToTry = [initialModel, "gemini-2.5-flash"];
+  const modelsToTry = [initialModel, "gemini-3.5-flash"];
   let lastError: any = null;
 
   for (const modelName of modelsToTry) {
@@ -94,27 +94,37 @@ async function startServer() {
       }
 
       const systemPrompt = `Eres un experto fiscal de la Agencia Tributaria Española (AEAT).
-Tu tarea es analizar la declaración de la renta de España (IRPF) (que puede ser del Contribuyente 1, del Contribuyente 2 o conjunta) y/o el documento de listado de inmuebles adjunto (que puede ser en formato texto, un documento PDF oficial o un listado Excel parseado) de uno o dos contribuyentes (pareja/cónyuges) y extraer TODA la información relevante sobre sus rentas del trabajo y sus inmuebles arrendados.
+Tu tarea es analizar la declaración de la renta de España (IRPF, Modelo 100) (que puede ser del Contribuyente 1, del Contribuyente 2 o conjunta) y/o el documento de listado de inmuebles adjunto (que puede ser texto, PDF oficial o listado Excel/CSV parseado) de uno o dos contribuyentes (pareja/cónyuges) y extraer TODA la información relevante sobre sus rentas del trabajo y sus inmuebles arrendados.
 
-REGLAS DE EXTRACCIÓN SENSATAS:
-1. Identifica al Contribuyente Principal (User 1) y al Cónyuge (User 2) si existe en los documentos. Si se encuentra información del cónyuge (User 2), establece hasPartner = true y extrae su nombre, DNI, ingresos brutos y netos de trabajo. Si no se menciona cónyuge, establece hasPartner = false.
-2. Si se proporciona un archivo de inmuebles adicional (que puede ser texto parseado de un Excel, un PDF o CSV), este suele contener datos desglosados y más detallados sobre los inmuebles (tales como dirección, referencia catastral, inquilinos, DNI del inquilino, renta mensual, precio de adquisición o gastos de comunidad, IBI, seguros, etc.). Cruza y combina la información de todos los archivos proporcionados de forma inteligente. Si un inmueble se menciona en varios de los documentos adjuntos, consolídalo en un solo objeto sin duplicarlo, quedándote con los datos más detallados y completos de cada campo (por ejemplo, si en la declaración aparece el importe de alquiler total y en el listado de inmuebles aparecen los inquilinos con sus NIFs y gastos, combínalos!).
-3. Extrae la información detallada de cada inmueble arrendado:
-   - Dirección completa (address).
-   - Referencia catastral (cadastralReference).
-   - Propietario (owner): puede ser 'user1', 'user2' o 'both' (si se comparte).
-   - Porcentajes de titularidad (ownershipPercentageUser1 y ownershipPercentageUser2) basados en el texto o documento. Si es de 'user1' es 100 y 0, si es de 'user2' es 0 y 100, si es compartido suele ser 50 y 50.
-   - Nombre de los inquilinos (tenantName): Extrae los nombres de TODOS los inquilinos/arrendatarios de ese inmueble. Si hay varios en el documento, concaténalos todos separados por comas (ej. 'Juan Pérez García, María López Fernández').
-   - NIF/DNI de los inquilinos (tenantDni): Extrae los DNI/NIF de TODOS los inquilinos de ese inmueble. Si hay varios en el documento, concaténalos todos separados por comas en el mismo orden que los nombres (ej. '12345678Z, 87654321X').
-   - Cuantía de alquiler percibido anual o mensual (monthlyRent): Extrae la cantidad exactamente tal como aparece escrita físicamente en el documento para ese inmueble. Si es anual, divídelo por 12 para calcular el alquiler mensual estimado.
-   - Precio de compra del inmueble / valor de adquisición (purchasePrice). Si no se detalla, haz una estimación sensata basada en las amortizaciones o pon un valor estimado razonable (e.g., 150000).
-   - Porcentaje del valor catastral correspondiente al suelo (landValuePercent): suele oscilar entre 20% y 30%. Si no se especifica, por defecto pon 25.
-   - Importe de amortización anual (amortizationAmount): usa el del texto o estima el 3% del valor de construcción.
-   - Gastos deducibles como comunidad, IBI, seguros, reparaciones, etc. desglosados anuales o consolidados. Extrae los valores tal como aparecen escritos.
-   - CRITICAL: Si el inmueble es de titularidad compartida (owner = 'both' o porcentajes < 100%) y los importes financieros correspondientes (alquiler, gastos, amortización, precio de compra) que aparecen en la declaración están prorrateados al porcentaje de participación (ej. 50%), DEBES calcular y devolver los importes normalizados al 100% de la capacidad de ese inmueble (es decir, el valor total absoluto del inmueble entero). La aplicación gestionará el inmueble al 100% y aplicará los repartos después de forma interna.
-4. Devuelve un objeto JSON estructurado que siga el esquema exacto proporcionado.`;
+GUÍA DE ANÁLISIS DETALLADA DE LA DECLARACIÓN DE RENTA (MODELO 100):
+1. DATOS IDENTIFICATIVOS:
+   - Busca en las primeras páginas (datos del declarante y cónyuge).
+   - "Primer declarante" o "Declarante" es el Contribuyente 1 (User 1). Extrae su nombre completo y su DNI/NIF.
+   - Si la declaración es conjunta o hay datos de "Cónyuge" o "Segundo declarante", este es el Contribuyente 2 (User 2). Extrae su nombre completo, NIF/DNI y establece "hasPartner": true. Si no existe, pon "hasPartner": false y deja a User 2 vacío o con valores por defecto.
 
-      const contents: any[] = [{ text: systemPrompt }];
+2. RENDIMIENTOS DEL TRABAJO (Sueldos y salarios):
+   - Dirígete al apartado de "Rendimientos del trabajo".
+   - Rendimiento Íntegro (Ingreso bruto): suele corresponder a la casilla 0003, casilla 0012, o el total de "Rendimientos íntegros del trabajo" (la suma de los salarios anuales de ese contribuyente). Debe ser un importe anual (por ejemplo, entre 15.000 y 90.000 €).
+   - Rendimiento Neto: suele corresponder a la casilla 0022 o "Rendimiento neto reducido del trabajo" para ese contribuyente.
+   - Si el documento es individual, asocia los ingresos del trabajo al declarante correspondiente. Si es conjunto, asócialos correctamente a cada uno según indique el desglose individual/conjunto.
+
+3. INMUEBLES ARRENDADOS Y ALQUILERES:
+   - Dirígete al apartado "Rendimientos del capital inmobiliario" o sección de inmuebles arrendados.
+   - Extrae cada inmueble detectado. De cada uno debes extraer:
+     * Dirección completa (address).
+     * Referencia catastral (cadastralReference) de 20 caracteres (ej: "1234567AB1234C0001DE").
+     * Propietario (owner): "user1", "user2" o "both" (compartido).
+     * Porcentajes de titularidad (ownershipPercentageUser1 y ownershipPercentageUser2) basados en el texto o documento. Si es de 'user1' es 100 y 0, si es de 'user2' es 0 y 100, si es compartido suele ser 50 y 50.
+     * Nombre de los inquilinos (tenantName) y sus NIF/DNI (tenantDni) (a veces figuran en los datos adicionales de los inmuebles arrendados). Si hay varios, concaténalos con comas.
+     * Cuantía de alquiler percibido (monthlyRent): Extrae el importe. Si en el PDF o Excel viene en formato anual, DIVÍDELO ENTRE 12 para calcular el alquiler mensual estimado.
+     * Precio de compra del inmueble / valor de adquisición (purchasePrice). Si no se detalla en el texto, haz una estimación sensata o usa el valor del Excel si está proporcionado.
+     * Importe de amortización anual (amortizationAmount): usa el del texto o calcula el 3% del valor de construcción (por defecto el 75% del precio de compra).
+     * Gastos deducibles como comunidad, IBI, seguros, reparaciones. Si vienen anuales, extrae el total anual.
+     * CRITICAL: Si el inmueble es de titularidad compartida (ej. 50% cada uno) y los importes financieros (alquiler, gastos, precio de compra) que aparecen en la declaración están prorrateados, DEBES multiplicar por 2 o normalizarlos para devolverlos al 100% de la capacidad de ese inmueble.
+
+Combina y cruza la información de la declaración y del archivo de inmuebles Excel para rellenar todos los campos del JSON de forma exhaustiva y lógica, sin duplicar inmuebles.`;
+
+      const contents: any[] = [];
 
       // 1. Process and add Tax return 1 file if present
       if (fileData1 && mimeType1) {
@@ -184,6 +194,7 @@ REGLAS DE EXTRACCIÓN SENSATAS:
       const response = await generateContentWithRetry(
         contents,
         {
+          systemInstruction: systemPrompt,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -238,7 +249,7 @@ REGLAS DE EXTRACCIÓN SENSATAS:
             required: ["user1", "user2", "properties"]
           }
         },
-        "gemini-2.5-flash"
+        "gemini-3.5-flash"
       );
 
       const textOutput = response.text;
