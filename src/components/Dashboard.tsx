@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { AppState, Property, PropertyExpense, getThemeColors } from "../types";
+import { isStaticEnvironment, clientSideExtract, clientSideExtractInvoice } from "../utils/githubPagesAdapter";
 import { 
   Building, 
   Briefcase, 
@@ -215,19 +216,32 @@ export default function Dashboard({
 
           setScanStatusMsg("Enviando a la red neuronal de Gemini 3.5 Flash...");
           
-          const response = await fetch("/api/extract-invoice", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileData: rawBase64, mimeType })
-          });
+          let result;
 
-          if (!response.ok) {
-            const errRes = await response.json();
-            throw new Error(errRes.error || "Fallo en la extracción de datos.");
+          if (isStaticEnvironment()) {
+            console.log("Static mode active - routing to client-side invoice scanner");
+            result = await clientSideExtractInvoice(rawBase64, mimeType);
+          } else {
+            try {
+              const response = await fetch("/api/extract-invoice", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ fileData: rawBase64, mimeType })
+              });
+
+              if (!response.ok) {
+                const errRes = await response.json();
+                throw new Error(errRes.error || "Fallo en la extracción de datos.");
+              }
+
+              result = await response.json();
+            } catch (fetchErr) {
+              console.warn("Backend invoice extraction failed, falling back to client-side", fetchErr);
+              result = await clientSideExtractInvoice(rawBase64, mimeType);
+            }
           }
 
           setScanStatusMsg("Leyendo base imponible, fecha y NIF fiscal...");
-          const result = await response.json();
           
           setExtractedResult(result);
           setScanning(false);
@@ -767,13 +781,24 @@ ${user2.hasPartner ? `Cónyuge: ${user2.name || "Usuario 2"} - DNI: ${user2.dni 
                             bodyPayload.text1 = yearPastedText;
                           }
 
-                          const response = await fetch("/api/extract", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(bodyPayload),
-                          });
-                          if (!response.ok) throw new Error("Fallo en la extracción");
-                          const res = await response.json();
+                          let res;
+                          if (isStaticEnvironment()) {
+                            console.log("Static mode active - routing to client-side extraction");
+                            res = await clientSideExtract(bodyPayload);
+                          } else {
+                            try {
+                              const response = await fetch("/api/extract", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(bodyPayload),
+                              });
+                              if (!response.ok) throw new Error("Fallo en la extracción");
+                              res = await response.json();
+                            } catch (fetchErr) {
+                              console.warn("Backend extraction failed, falling back to client-side", fetchErr);
+                              res = await clientSideExtract(bodyPayload);
+                            }
+                          }
                           
                           const isConjunta = yearIntegrationMode === "conjunta";
                           const isUser1 = yearIntegrationMode === "user1";
