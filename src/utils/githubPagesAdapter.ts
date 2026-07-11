@@ -687,15 +687,16 @@ Tu tarea es analizar la declaración de la renta de España (IRPF, Modelo 100) (
 Sigue rigurosamente estas pautas para una extracción 100% precisa:
 
 1. IDENTIFICACIÓN DE LOS CONTRIBUYENTES (USER 1 / USER 2):
-   - IMPORTANTE: Puedes recibir uno o dos documentos de declaración de renta.
+   - IMPORTANTE: Puedes recibir uno o dos documentos de declaración de renta. Extrae SIEMPRE con total prioridad el nombre y DNI del Declarante Principal (que irá en 'user1') y del Cónyuge (que irá en 'user2'). Bajo ningún concepto dejes a 'user1' con datos ficticios o vacíos si en el documento hay un declarante principal.
    - Si recibes DOS documentos de declaración separados (DOCUMENTO 1 y DOCUMENTO 2):
-     * El 'Declarante' o 'Primer declarante' que aparezca en el DOCUMENTO 1 es el Contribuyente 1 (User 1). Extrae su nombre completo and su NIF/DNI que figura en ese DOCUMENTO 1.
-     * El 'Declarante' o 'Primer declarante' que aparezca en el DOCUMENTO 2 es el Contribuyente 2 (User 2). Extrae su nombre completo and su NIF/DNI que figura en ese DOCUMENTO 2. Establece 'hasPartner': true en el objeto de 'user2'.
+     * El 'Declarante' o 'Primer declarante' o 'Sujeto Pasivo' que aparezca en el DOCUMENTO 1 es el Contribuyente 1 (User 1). Extrae su nombre completo y su NIF/DNI que figura en ese DOCUMENTO 1.
+     * El 'Declarante' o 'Primer declarante' o 'Sujeto Pasivo' que aparezca en el DOCUMENTO 2 es el Contribuyente 2 (User 2). Extrae su nombre completo y su NIF/DNI que figura en ese DOCUMENTO 2. Establece 'hasPartner': true en el objeto de 'user2'.
      * Asocia los ingresos de trabajo ('brutoTrabajo' y 'netoTrabajo') del DOCUMENTO 1 a 'user1', y los del DOCUMENTO 2 a 'user2'.
    - Si recibes UN SOLO documento de declaración:
-     * El 'Declarante' o 'Primer declarante' es el Contribuyente 1 (User 1). Extrae su nombre completo and su NIF/DNI.
-     * El 'Cónyuge' o 'Segundo declarante' (si figura en el documento) es el Contribuyente 2 (User 2). Extrae su nombre completo and su NIF/DNI si están presentes, y establece 'hasPartner': true. Si no hay cónyuge ni segundo declarante en ese documento, establece 'hasPartner': false.
-   - Si los nombres vienen con apellidos primero (ej. 'SANCHEZ PEREZ, JUAN'), devuélvelos en orden natural ('Juan Sánchez Pérez') o como figuren, pero asegúrate de extraerlos de forma limpia. El DNI/NIF debe tener sus 8 dígitos y la letra (ej. '12345678Z').
+     * El 'Declarante' o 'Primer declarante' o 'Sujeto pasivo' es el Contribuyente 1 (User 1). Extrae su nombre completo y su NIF/DNI de la primera página (apartado 'Datos identificativos' o cabecera).
+     * El 'Cónyuge' o 'Segundo declarante' (si figura en el documento) es el Contribuyente 2 (User 2). Extrae su nombre completo y su NIF/DNI si están presentes, y establece 'hasPartner': true. Si no hay cónyuge ni segundo declarante en ese documento, establece 'hasPartner': false.
+   - DETECCIÓN DE ROLES CRÍTICA: El declarante principal puede ser un hombre o una mujer. Si el documento tiene como primer declarante a una persona (ej: mujer) y cónyuge a otra (ej: hombre), asócialos correctamente a 'user1' (Declarante) y 'user2' (Cónyuge) respectively. ¡NUNCA dejes a 'user1' vacío o con "PROPIETARIO PRINCIPAL" si hay un nombre legible!
+   - Si los nombres vienen con apellidos primero (ej. 'SANCHEZ PEREZ, JUAN' o 'PEREZ GOMEZ, MARIA PILAR'), devuélvelos en orden natural ('Juan Sánchez Pérez' o 'María Pilar Pérez Gómez') o exactamente como figuren de manera limpia (sin caracteres extraños ni códigos de casillas). El DNI/NIF debe tener sus 8 dígitos y la letra (ej. '12345678Z').
 
 2. RENDIMIENTOS DEL TRABAJO (Sueldos y salarios):
    - Busca en la sección titulada 'A. Rendimientos del trabajo' o 'Rendimientos del trabajo'.
@@ -786,7 +787,7 @@ Combina y cruza la información de la declaración y del archivo de inmuebles Ex
       }
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash",
         contents,
         config: {
           responseMimeType: "application/json",
@@ -915,7 +916,7 @@ export async function clientSideOptimizeContract(
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash",
         contents: prompt
       });
 
