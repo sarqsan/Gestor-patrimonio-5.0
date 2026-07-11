@@ -344,33 +344,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         amort = Number((constructionVal * 0.03).toFixed(2));
       }
 
-      const addrLower = (prop.address || "").toLowerCase();
-      const isMadrid = addrLower.includes("alcala") || addrLower.includes("madrid");
-      const isSevilla = addrLower.includes("constitucion") || addrLower.includes("sevilla");
-      const isBarcelona = addrLower.includes("mallorca") || addrLower.includes("barcelona");
-
-      let defaultCurrentValue = purchase;
-      let defaultExpenses = Math.round(purchase * 0.1); // 10% standard purchase expenses
-      let defaultMortgageDebt = 0;
-      let defaultMonthlyMortgagePayment = 0;
-
-      if (isMadrid) {
-        defaultCurrentValue = 215000;
-        defaultMortgageDebt = 115000;
-        defaultMonthlyMortgagePayment = 580;
-      } else if (isSevilla) {
-        defaultCurrentValue = 162000;
-        defaultMortgageDebt = 88000;
-        defaultMonthlyMortgagePayment = 440;
-      } else if (isBarcelona) {
-        defaultCurrentValue = 295000;
-        defaultMortgageDebt = 165000;
-        defaultMonthlyMortgagePayment = 810;
-      } else if (purchase > 0) {
-        defaultCurrentValue = Math.round(purchase * 1.15);
-        defaultMortgageDebt = Math.round(purchase * 0.6);
-        defaultMonthlyMortgagePayment = Math.round((purchase * 0.6 * 0.045) / 12);
-      }
+      let defaultCurrentValue = purchase > 0 ? Math.round(purchase * 1.15) : 180000;
+      let defaultExpenses = purchase > 0 ? Math.round(purchase * 0.1) : 18000; // 10% standard purchase expenses
+      let defaultMortgageDebt = purchase > 0 ? Math.round(purchase * 0.55) : 0;
+      let defaultMonthlyMortgagePayment = purchase > 0 && defaultMortgageDebt > 0 ? Math.round((defaultMortgageDebt * 0.042) / 12) : 0;
 
       const yearlyFinancials: Record<number, any> = {};
       const years = [2025, 2026, 2027, 2028];
