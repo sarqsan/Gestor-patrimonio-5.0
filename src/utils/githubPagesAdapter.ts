@@ -835,27 +835,7 @@ function parseTextLocally(text: string): any {
     }
   }
 
-  if (extractedProperties.length > 0) {
-    result.properties = extractedProperties;
-  } else {
-    result.properties.push({
-      address: "Calle de Alcalá 140, 3ºB, 28009 Madrid",
-      cadastralReference: "9872301VK4797S0003TR",
-      owner: result.user2.hasPartner ? "both" : "user1",
-      ownershipPercentageUser1: result.user2.hasPartner ? 50 : 100,
-      ownershipPercentageUser2: result.user2.hasPartner ? 50 : 0,
-      tenantName: "CARLOS MENDOZA SOLER",
-      tenantDni: "87654321B",
-      monthlyRent: 950,
-      purchasePrice: 180000,
-      landValuePercent: 25,
-      amortizationAmount: 4050,
-      expensesCommunity: 300,
-      expensesIBI: 400,
-      expensesInsurance: 250,
-      expensesRepairs: 450
-    });
-  }
+  result.properties = extractedProperties;
 
   return result;
 }

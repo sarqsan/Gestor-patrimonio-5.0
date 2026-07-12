@@ -317,7 +317,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     // Map extracted API data to AppState structures
     const user1Profile = {
       name: previewData.user1?.name || "Usuario 1",
-      dni: previewData.user1?.dni || "12345678A",
+      dni: previewData.user1?.dni || "",
       brutoTrabajo: Number(previewData.user1?.brutoTrabajo || 0),
       netoTrabajo: Number(previewData.user1?.netoTrabajo || 0),
     };
@@ -328,10 +328,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     ].includes(rawPartnerName);
     const hasPartner = !!previewData.user2?.hasPartner && !isPlaceholderPartner;
     const user2Profile = {
-      name: previewData.user2?.name || "Usuario 2",
-      dni: previewData.user2?.dni || "87654321K",
-      brutoTrabajo: Number(previewData.user2?.brutoTrabajo || 0),
-      netoTrabajo: Number(previewData.user2?.netoTrabajo || 0),
+      name: hasPartner ? (previewData.user2?.name || "Usuario 2") : "",
+      dni: hasPartner ? (previewData.user2?.dni || "") : "",
+      brutoTrabajo: hasPartner ? Number(previewData.user2?.brutoTrabajo || 0) : 0,
+      netoTrabajo: hasPartner ? Number(previewData.user2?.netoTrabajo || 0) : 0,
       hasPartner: hasPartner,
     };
 
@@ -368,13 +368,18 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         };
       });
 
+      // Coerce property owners to user1 if no partner is active to prevent orphan co-ownerships
+      const resolvedOwner = hasPartner ? (prop.owner || "user1") : "user1";
+      const resolvedPct1 = hasPartner ? Number(prop.ownershipPercentageUser1 ?? (resolvedOwner === 'user1' ? 100 : resolvedOwner === 'both' ? 50 : 0)) : 100;
+      const resolvedPct2 = hasPartner ? Number(prop.ownershipPercentageUser2 ?? (resolvedOwner === 'user2' ? 100 : resolvedOwner === 'both' ? 50 : 0)) : 0;
+
       return {
         id,
         address: prop.address || "Inmueble sin dirección",
         cadastralReference: prop.cadastralReference || "REF-CATASTRAL-MOCK",
-        owner: prop.owner || "user1",
-        ownershipPercentageUser1: Number(prop.ownershipPercentageUser1 ?? (prop.owner === 'user1' ? 100 : prop.owner === 'both' ? 50 : 0)),
-        ownershipPercentageUser2: Number(prop.ownershipPercentageUser2 ?? (prop.owner === 'user2' ? 100 : prop.owner === 'both' ? 50 : 0)),
+        owner: resolvedOwner,
+        ownershipPercentageUser1: resolvedPct1,
+        ownershipPercentageUser2: resolvedPct2,
         tenantName: prop.tenantName || "Inquilino pendiente",
         tenantDni: prop.tenantDni || "00000000X",
         monthlyRent: monthly,
@@ -1065,7 +1070,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   </div>
                 </div>
 
-                {previewData.user2 && (previewData.user2.hasPartner || previewData.user2.name) && (
+                {previewData.user2 && previewData.user2.hasPartner && (
                   <div className="bg-slate-800/40 rounded-xl p-5 border border-slate-700/40">
                     <div className="flex items-center space-x-2 text-pink-400 font-semibold mb-3">
                       <Heart className="w-4.5 h-4.5" />

@@ -197,8 +197,8 @@ export default function App() {
     updateState((prev) => {
       const next: AppState = {
         ...prev,
-        user1: extracted.user1 || { name: "Usuario 1", dni: "12345678A", brutoTrabajo: 36200, netoTrabajo: 31800 },
-        user2: extracted.user2 || { name: "Usuario 2", dni: "87654321K", brutoTrabajo: 29500, netoTrabajo: 25100, hasPartner: true },
+        user1: extracted.user1 || { name: "Usuario 1", dni: "", brutoTrabajo: 0, netoTrabajo: 0 },
+        user2: extracted.user2 || { name: "Usuario 2", dni: "", brutoTrabajo: 0, netoTrabajo: 0, hasPartner: false },
         properties: extracted.properties || [],
         payments: generatedPayments,
         expenses: generatedExpenses,
@@ -209,7 +209,7 @@ export default function App() {
             sourceModule: "Agencia Tributaria (AI Extraction)",
             targetModule: "Dashboard Consolidado",
             action: "Perfil fiscal y cartera cargada",
-            details: `Importado con éxito. Se detectaron ${extracted.properties?.length || 0} inmuebles arrendados y datos laborales de ambos cónyuges.`
+            details: `Importado con éxito. Se detectaron ${extracted.properties?.length || 0} inmuebles arrendados.`
           },
           ...(prev.syncEvents || [])
         ],
