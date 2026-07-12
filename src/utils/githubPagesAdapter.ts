@@ -684,8 +684,9 @@ function parseTextLocally(text: string): any {
     }
   }
 
+  // Leave work earnings as 0 if not extracted from text (only sample uses hardcoded defaults)
   if (result.user1.brutoTrabajo === 0) {
-    result.user1.brutoTrabajo = 36200; // sensible default
+    result.user1.brutoTrabajo = 0;
   }
 
   const netoRegexes = [
@@ -702,12 +703,12 @@ function parseTextLocally(text: string): any {
   }
 
   if (result.user1.netoTrabajo === 0) {
-    result.user1.netoTrabajo = Math.round(result.user1.brutoTrabajo * 0.85);
+    result.user1.netoTrabajo = 0;
   }
 
   if (result.user2.hasPartner) {
-    result.user2.brutoTrabajo = Math.round(result.user1.brutoTrabajo * 0.8);
-    result.user2.netoTrabajo = Math.round(result.user2.brutoTrabajo * 0.85);
+    result.user2.brutoTrabajo = 0;
+    result.user2.netoTrabajo = 0;
   }
 
   // 5. Dynamic Property Extraction from Text/Excel Lines
@@ -905,6 +906,13 @@ Sigue rigurosamente estas pautas para una extracción 100% precisa y libre de al
      * Amortización anual ('amortizationAmount'): Es la Casilla 0115 de la Renta. Si no figura, estima la amortización como el 3% del valor de construcción (el 75% del precio de compra).
      * Datos del inquilino ('tenantName' y 'tenantDni'): Búscalos en los anexos de la renta (Casilla 0105 o datos del arrendatario) o en el listado de inmuebles. Extrae nombres y NIFs reales de los inquilinos.
      * Gastos deducibles anuales al 100%: Comunidad ('expensesCommunity'), IBI ('expensesIBI', Casilla 0107), Seguro ('expensesInsurance'), y Reparaciones/Mantenimiento ('expensesRepairs', Casilla 0109). Si en la renta vienen prorrateados por tu porcentaje de propiedad, multiplícalos para reflejar el 100% del gasto total del inmueble.
+
+4. AUSENCIA DE DECLARACIONES DE RENTA O DATOS DE IDENTIDAD (MUY IMPORTANTE):
+   - Si NO se proporciona ningún documento de declaración de la renta (Documento 1 ni Documento 2), o si en los documentos aportados no constan explícitamente los nombres y DNIs de los contribuyentes:
+     * ¡ESTÁ TERMINANTEMENTE PROHIBIDO INVENTAR, ALUCINAR O ESTIMAR nombres o DNIs ficticios!
+     * Pon exactamente de nombre "Usuario 1" para 'user1' y su DNI en cadena vacía "".
+     * Pon exactamente de nombre "Usuario 2" para 'user2', su DNI en cadena vacía "" y establece 'hasPartner': false.
+     * Establece los campos de rentas del trabajo ('brutoTrabajo' y 'netoTrabajo') a "0" para ambos. No simules salarios.
 
 CRUZA Y COMBINA la información con sumo cuidado. Evita duplicar inmuebles. Asegúrate de que los importes numéricos corresponden al 100% del inmueble y que las cantidades de sueldos corresponden al año completo.`;
 

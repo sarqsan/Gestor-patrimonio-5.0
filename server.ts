@@ -329,6 +329,13 @@ Sigue rigurosamente estas pautas para una extracción 100% precisa y libre de al
      * Datos del inquilino ('tenantName' y 'tenantDni'): Búscalos en los anexos de la renta (Casilla 0105 o datos del arrendatario) o en el listado de inmuebles. Extrae nombres y NIFs reales de los inquilinos.
      * Gastos deducibles anuales al 100%: Comunidad ('expensesCommunity'), IBI ('expensesIBI', Casilla 0107), Seguro ('expensesInsurance'), y Reparaciones/Mantenimiento ('expensesRepairs', Casilla 0109). Si en la renta vienen prorrateados por tu porcentaje de propiedad, multiplícalos para reflejar el 100% del gasto total del inmueble.
 
+4. AUSENCIA DE DECLARACIONES DE RENTA O DATOS DE IDENTIDAD (MUY IMPORTANTE):
+   - Si NO se proporciona ningún documento de declaración de la renta (Documento 1 ni Documento 2), o si en los documentos aportados no constan explícitamente los nombres y DNIs de los contribuyentes:
+     * ¡ESTÁ TERMINANTEMENTE PROHIBIDO INVENTAR, ALUCINAR O ESTIMAR nombres o DNIs ficticios!
+     * Pon exactamente de nombre "Usuario 1" para 'user1' y su DNI en cadena vacía "".
+     * Pon exactamente de nombre "Usuario 2" para 'user2', su DNI en cadena vacía "" y establece 'hasPartner': false.
+     * Establece los campos de rentas del trabajo ('brutoTrabajo' y 'netoTrabajo') a "0" para ambos. No simules salarios.
+
 CRUZA Y COMBINA la información con sumo cuidado. Evita duplicar inmuebles. Asegúrate de que los importes numéricos corresponden al 100% del inmueble y que las cantidades de sueldos corresponden al año completo.`;
 
       const contents: any[] = [];
