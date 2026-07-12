@@ -30,6 +30,106 @@ function cleanClientJsonText(text: string): string {
   return cleaned;
 }
 
+function cleanNameString(name: string, fallbackDefault: string): string {
+  if (!name) return fallbackDefault;
+  
+  // Strip leading and trailing punctuation like commas, semicolons, backslashes, periods, spaces
+  let clean = name.replace(/^[,;.\s\\\-\/]+/, "").replace(/[,;.\s\\\-\/]+$/, "").trim();
+  
+  // Replace multiple consecutive commas or spaces in the middle with a single space
+  clean = clean.replace(/,+/g, " ");
+  clean = clean.replace(/\s+/g, " ");
+  clean = clean.trim();
+  
+  const upper = clean.toUpperCase();
+  const genericLabels = [
+    "CONYUGE DECLARANTE", "CONYUGE", "CÓNYUGE DECLARANTE", "CÓNYUGE",
+    "DECLARANTE", "DECLARANTE PRINCIPAL", "SUJETO PASIVO", "SEGUNDO DECLARANTE",
+    "PRIMER DECLARANTE", "TITULAR", "S. DE B.", "S.PASIVO", "SPASIVO",
+    "USUARIO", "USUARIO 1", "USUARIO 2", "PROPIETARIO PRINCIPAL",
+    "NO DETECTADO", "NO ESPECIFICADO", "NO APLICA", ""
+  ];
+  
+  if (genericLabels.includes(upper) || upper.length < 2) {
+    return fallbackDefault;
+  }
+  
+  // Clean up casing if entirely uppercase to make it look highly polished and premium
+  if (clean === upper) {
+    clean = clean.toLowerCase().replace(/(?:^|\s)\S/g, (res) => res.toUpperCase());
+  }
+  
+  return clean;
+}
+
+function cleanDniString(dni: string): string {
+  if (!dni) return "";
+  let clean = dni.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return clean;
+}
+
+function sanitizeExtractionResult(data: any): any {
+  if (!data) return data;
+  
+  const sanitized = { ...data };
+  
+  if (sanitized.user1) {
+    sanitized.user1 = {
+      ...sanitized.user1,
+      name: cleanNameString(sanitized.user1.name, "Usuario 1"),
+      dni: cleanDniString(sanitized.user1.dni)
+    };
+  } else {
+    sanitized.user1 = { name: "Usuario 1", dni: "", brutoTrabajo: 0, netoTrabajo: 0 };
+  }
+  
+  if (sanitized.user2) {
+    const hasPartnerValue = sanitized.user2.hasPartner !== undefined ? sanitized.user2.hasPartner : false;
+    const cleanedName = cleanNameString(sanitized.user2.name, "Cónyuge");
+    
+    // If the spouse has a name that isn't the fallback, or has a valid DNI, or hasPartner is true
+    const isSpouseActive = hasPartnerValue || (cleanedName !== "Cónyuge" && cleanedName !== "") || (sanitized.user2.dni && sanitized.user2.dni.trim() !== "");
+    
+    sanitized.user2 = {
+      ...sanitized.user2,
+      name: cleanedName,
+      dni: cleanDniString(sanitized.user2.dni),
+      hasPartner: isSpouseActive
+    };
+  } else {
+    sanitized.user2 = { name: "Usuario 2", dni: "", brutoTrabajo: 0, netoTrabajo: 0, hasPartner: false };
+  }
+  
+  if (Array.isArray(sanitized.properties)) {
+    sanitized.properties = sanitized.properties.map((prop: any) => {
+      if (!prop) return prop;
+      const cleanProp = { ...prop };
+      
+      if (cleanProp.address) {
+        cleanProp.address = cleanProp.address.replace(/^[,;.\s\\\-\/]+/, "").replace(/[,;.\s\\\-\/]+$/, "").trim();
+      }
+      
+      if (cleanProp.cadastralReference) {
+        cleanProp.cadastralReference = cleanProp.cadastralReference.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+      }
+      
+      if (cleanProp.tenantName) {
+        cleanProp.tenantName = cleanProp.tenantName.replace(/^[,;.\s\\\-\/]+/, "").replace(/[,;.\s\\\-\/]+$/, "").trim();
+        cleanProp.tenantName = cleanProp.tenantName.replace(/,+/g, ", ").replace(/\s+/g, " ").trim();
+      }
+      
+      if (cleanProp.tenantDni) {
+        cleanProp.tenantDni = cleanProp.tenantDni.trim().toUpperCase().replace(/[^A-Z0-9,\s]/g, "");
+        cleanProp.tenantDni = cleanProp.tenantDni.replace(/,+/g, ", ").replace(/\s+/g, " ").trim();
+      }
+      
+      return cleanProp;
+    });
+  }
+  
+  return sanitized;
+}
+
 function getJuanSampleResult() {
   return {
     user1: {
@@ -856,7 +956,8 @@ Combina y cruza la información de la declaración y del archivo de inmuebles Ex
 
       if (response && response.text) {
         const cleanedText = cleanClientJsonText(response.text);
-        return JSON.parse(cleanedText);
+        const parsed = JSON.parse(cleanedText);
+        return sanitizeExtractionResult(parsed);
       }
     } catch (e) {
       console.error("Client-side Gemini extraction failed, falling back to local fallback: ", e);
@@ -883,7 +984,8 @@ Combina y cruza la información de la declaración y del archivo de inmuebles Ex
   }
 
   const fullText = (bodyPayload.text1 || "") + "\n" + (bodyPayload.text2 || "") + "\n" + excelText;
-  return parseTextLocally(fullText);
+  const rawParsed = parseTextLocally(fullText);
+  return sanitizeExtractionResult(rawParsed);
 }
 
 // Client-side contract optimizer
