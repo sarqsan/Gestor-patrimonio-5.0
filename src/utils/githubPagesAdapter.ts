@@ -30,10 +30,61 @@ function cleanClientJsonText(text: string): string {
   return cleaned;
 }
 
+function parseAnyNumber(val: any): number {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === "number") {
+    return isNaN(val) ? 0 : val;
+  }
+  let str = String(val).trim().replace(/[€\s\$%a-zA-Z]/g, "");
+  if (!str) return 0;
+  
+  // If there is both a dot and a comma, like "36.200,50"
+  if (str.includes(".") && str.includes(",")) {
+    // Dot is thousands, comma is decimal
+    str = str.replace(/\./g, "").replace(/,/g, ".");
+  } else if (str.includes(",")) {
+    // Only comma, e.g. "36200,50" -> comma is decimal
+    str = str.replace(/,/g, ".");
+  } else if (str.includes(".")) {
+    // Only dot, e.g. "36.200" or "36200.50"
+    // If there is a dot followed by exactly 3 digits at the end, it is likely a thousands separator (e.g. "36.200")
+    // Unless there are multiple dots, in which case they are definitely thousands separators (e.g. "1.250.000")
+    const parts = str.split(".");
+    if (parts.length > 2) {
+      // Multiple dots: "1.250.000" -> thousands separators
+      str = str.replace(/\./g, "");
+    } else {
+      // Single dot: e.g. "36.200" vs "36200.50"
+      const decimalPart = parts[1];
+      if (decimalPart.length === 3) {
+        // E.g. "36.200" is thousands separator
+        const parsedWithoutDot = parseFloat(str.replace(/\./g, ""));
+        const parsedWithDot = parseFloat(str);
+        if (parsedWithoutDot >= 100 && parsedWithDot < 10) {
+          str = str.replace(/\./g, "");
+        }
+      }
+    }
+  }
+  
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+}
+
 function cleanNameString(name: string, fallbackDefault: string): string {
   if (!name) return fallbackDefault;
   
   let clean = name.trim();
+  
+  // If the name is in "LASTNAMES, FIRSTNAME" format, convert to "FIRSTNAME LASTNAMES"
+  if (clean.includes(",") && (clean.split(",").length === 2)) {
+    const parts = clean.split(",");
+    const lastNames = parts[0].trim();
+    const firstName = parts[1].trim();
+    if (lastNames && firstName) {
+      clean = `${firstName} ${lastNames}`;
+    }
+  }
   
   // Strip trailing punctuation/spaces using a foolproof char-by-char check
   while (clean.length > 0 && /[,;._\\\-\/\s\t\n\r]/.test(clean.charAt(clean.length - 1))) {
@@ -90,7 +141,9 @@ function sanitizeExtractionResult(data: any): any {
     sanitized.user1 = {
       ...sanitized.user1,
       name: cleanNameString(sanitized.user1.name, "Usuario 1"),
-      dni: cleanDniString(sanitized.user1.dni)
+      dni: cleanDniString(sanitized.user1.dni),
+      brutoTrabajo: parseAnyNumber(sanitized.user1.brutoTrabajo),
+      netoTrabajo: parseAnyNumber(sanitized.user1.netoTrabajo)
     };
   } else {
     sanitized.user1 = { name: "Usuario 1", dni: "", brutoTrabajo: 0, netoTrabajo: 0 };
@@ -107,6 +160,8 @@ function sanitizeExtractionResult(data: any): any {
       ...sanitized.user2,
       name: cleanedName,
       dni: cleanDniString(sanitized.user2.dni),
+      brutoTrabajo: parseAnyNumber(sanitized.user2.brutoTrabajo),
+      netoTrabajo: parseAnyNumber(sanitized.user2.netoTrabajo),
       hasPartner: isSpouseActive
     };
   } else {
@@ -135,6 +190,18 @@ function sanitizeExtractionResult(data: any): any {
         cleanProp.tenantDni = cleanProp.tenantDni.trim().toUpperCase().replace(/[^A-Z0-9,\s]/g, "");
         cleanProp.tenantDni = cleanProp.tenantDni.replace(/,+/g, ", ").replace(/\s+/g, " ").trim();
       }
+      
+      // Parse all numeric fields
+      cleanProp.ownershipPercentageUser1 = parseAnyNumber(cleanProp.ownershipPercentageUser1);
+      cleanProp.ownershipPercentageUser2 = parseAnyNumber(cleanProp.ownershipPercentageUser2);
+      cleanProp.monthlyRent = parseAnyNumber(cleanProp.monthlyRent);
+      cleanProp.purchasePrice = parseAnyNumber(cleanProp.purchasePrice);
+      cleanProp.landValuePercent = parseAnyNumber(cleanProp.landValuePercent) || 25;
+      cleanProp.amortizationAmount = parseAnyNumber(cleanProp.amortizationAmount);
+      cleanProp.expensesCommunity = parseAnyNumber(cleanProp.expensesCommunity);
+      cleanProp.expensesIBI = parseAnyNumber(cleanProp.expensesIBI);
+      cleanProp.expensesInsurance = parseAnyNumber(cleanProp.expensesInsurance);
+      cleanProp.expensesRepairs = parseAnyNumber(cleanProp.expensesRepairs);
       
       return cleanProp;
     });
@@ -917,8 +984,8 @@ CRUZA Y COMBINA la información con sumo cuidado. Evita duplicar inmuebles. Aseg
                 properties: {
                   name: { type: Type.STRING, description: "Nombre completo del Contribuyente 1" },
                   dni: { type: Type.STRING, description: "DNI o NIF del Contribuyente 1" },
-                  brutoTrabajo: { type: Type.NUMBER, description: "Rendimientos íntegros del trabajo anuales (bruto) de User 1" },
-                  netoTrabajo: { type: Type.NUMBER, description: "Rendimiento neto de trabajo anual de User 1" }
+                  brutoTrabajo: { type: Type.STRING, description: "Rendimientos íntegros del trabajo anuales (bruto) de User 1 (ej: '36200.50' o '36.200,00' o '36200')" },
+                  netoTrabajo: { type: Type.STRING, description: "Rendimiento neto de trabajo anual de User 1 (ej: '30120.00' o '30.120,50')" }
                 },
                 required: ["name", "dni", "brutoTrabajo", "netoTrabajo"]
               },
@@ -927,8 +994,8 @@ CRUZA Y COMBINA la información con sumo cuidado. Evita duplicar inmuebles. Aseg
                 properties: {
                   name: { type: Type.STRING, description: "Nombre completo del Contribuyente 2 (Cónyuge)" },
                   dni: { type: Type.STRING, description: "DNI o NIF del Contribuyente 2" },
-                  brutoTrabajo: { type: Type.NUMBER, description: "Rendimientos íntegros del trabajo anuales (bruto) de User 2" },
-                  netoTrabajo: { type: Type.NUMBER, description: "Rendimiento neto de trabajo anual de User 2" },
+                  brutoTrabajo: { type: Type.STRING, description: "Rendimientos íntegros del trabajo anuales (bruto) de User 2" },
+                  netoTrabajo: { type: Type.STRING, description: "Rendimiento neto de trabajo anual de User 2" },
                   hasPartner: { type: Type.BOOLEAN, description: "Indica si se ha detectado cónyuge o pareja en el documento" }
                 },
                 required: ["name", "dni", "brutoTrabajo", "netoTrabajo", "hasPartner"]
@@ -942,18 +1009,18 @@ CRUZA Y COMBINA la información con sumo cuidado. Evita duplicar inmuebles. Aseg
                     address: { type: Type.STRING, description: "Dirección o emplazamiento del inmueble" },
                     cadastralReference: { type: Type.STRING, description: "Referencia Catastral (20 caracteres)" },
                     owner: { type: Type.STRING, description: "Quién es el dueño: 'user1', 'user2' o 'both'" },
-                    ownershipPercentageUser1: { type: Type.NUMBER, description: "Porcentaje de propiedad del Contribuyente 1 (0-100)" },
-                    ownershipPercentageUser2: { type: Type.NUMBER, description: "Porcentaje de propiedad del Contribuyente 2 / Cónyuge (0-100)" },
+                    ownershipPercentageUser1: { type: Type.STRING, description: "Porcentaje de propiedad del Contribuyente 1 (0-100) (ej: '50' o '100')" },
+                    ownershipPercentageUser2: { type: Type.STRING, description: "Porcentaje de propiedad del Contribuyente 2 / Cónyuge (0-100) (ej: '50' o '0')" },
                     tenantName: { type: Type.STRING, description: "Nombres completos de TODOS los inquilinos, separados por comas" },
                     tenantDni: { type: Type.STRING, description: "NIF/DNI de TODOS los inquilinos, en el mismo orden" },
-                    monthlyRent: { type: Type.NUMBER, description: "Importe del alquiler mensual" },
-                    purchasePrice: { type: Type.NUMBER, description: "Precio de compra o coste de adquisición del inmueble" },
-                    landValuePercent: { type: Type.NUMBER, description: "Porcentaje catastral asignado al suelo. Por defecto 25" },
-                    amortizationAmount: { type: Type.NUMBER, description: "Importe de amortización deducible anual" },
-                    expensesCommunity: { type: Type.NUMBER, description: "Gastos anuales estimados de comunidad" },
-                    expensesIBI: { type: Type.NUMBER, description: "Gastos anuales estimados de IBI" },
-                    expensesInsurance: { type: Type.NUMBER, description: "Gastos anuales de seguro de hogar / impago" },
-                    expensesRepairs: { type: Type.NUMBER, description: "Gastos anuales de mantenimiento o reparaciones" }
+                    monthlyRent: { type: Type.STRING, description: "Importe del alquiler mensual (si es anual, divídelo entre 12. Ej: '800' o '800.50')" },
+                    purchasePrice: { type: Type.STRING, description: "Precio de compra o coste de adquisición del inmueble" },
+                    landValuePercent: { type: Type.STRING, description: "Porcentaje catastral asignado al suelo. Por defecto '25'" },
+                    amortizationAmount: { type: Type.STRING, description: "Importe de amortización deducible anual" },
+                    expensesCommunity: { type: Type.STRING, description: "Gastos anuales estimados de comunidad" },
+                    expensesIBI: { type: Type.STRING, description: "Gastos anuales estimados de IBI" },
+                    expensesInsurance: { type: Type.STRING, description: "Gastos anuales de seguro de hogar / impago" },
+                    expensesRepairs: { type: Type.STRING, description: "Gastos anuales de mantenimiento o reparaciones" }
                   },
                   required: ["address", "cadastralReference", "owner", "tenantName", "tenantDni", "monthlyRent", "purchasePrice", "landValuePercent", "amortizationAmount"]
                 }
