@@ -80,10 +80,11 @@ function parseAnyNumber(val: any): number {
   return isNaN(num) ? 0 : num;
 }
 
-function cleanNameString(name: string, fallbackDefault: string): string {
-  if (!name) return fallbackDefault;
+function cleanNameString(name: any, fallbackDefault: string): string {
+  if (name === undefined || name === null) return fallbackDefault;
   
-  let clean = name.trim();
+  let clean = String(name).trim();
+  if (!clean) return fallbackDefault;
   
   // If the name is in "LASTNAMES, FIRSTNAME" format, convert to "FIRSTNAME LASTNAMES"
   if (clean.includes(",") && (clean.split(",").length === 2)) {
@@ -131,9 +132,9 @@ function cleanNameString(name: string, fallbackDefault: string): string {
   return clean;
 }
 
-function cleanDniString(dni: string): string {
-  if (!dni) return "";
-  let clean = dni.trim().toUpperCase();
+function cleanDniString(dni: any): string {
+  if (dni === undefined || dni === null) return "";
+  let clean = String(dni).trim().toUpperCase();
   // Remove prefix labels like NIF, DNI, NIE, CIF
   clean = clean.replace(/^(?:NIF|DNI|NIE|CIF)[:\-\s]*/, "");
   // Remove everything except letters and numbers
@@ -183,21 +184,33 @@ function sanitizeExtractionResult(data: any): any {
       const cleanProp = { ...prop };
       
       if (cleanProp.address) {
-        cleanProp.address = cleanProp.address.replace(/^[,;.\s\\\-\/]+/, "").replace(/[,;.\s\\\-\/]+$/, "").trim();
+        const addrStr = String(cleanProp.address);
+        cleanProp.address = addrStr.replace(/^[,;.\s\\\-\/]+/, "").replace(/[,;.\s\\\-\/]+$/, "").trim();
+      } else {
+        cleanProp.address = "";
       }
       
       if (cleanProp.cadastralReference) {
-        cleanProp.cadastralReference = cleanProp.cadastralReference.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const cadStr = String(cleanProp.cadastralReference);
+        cleanProp.cadastralReference = cadStr.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+      } else {
+        cleanProp.cadastralReference = "";
       }
       
       if (cleanProp.tenantName) {
-        cleanProp.tenantName = cleanProp.tenantName.replace(/^[,;.\s\\\-\/]+/, "").replace(/[,;.\s\\\-\/]+$/, "").trim();
+        const tNameStr = String(cleanProp.tenantName);
+        cleanProp.tenantName = tNameStr.replace(/^[,;.\s\\\-\/]+/, "").replace(/[,;.\s\\\-\/]+$/, "").trim();
         cleanProp.tenantName = cleanProp.tenantName.replace(/,+/g, ", ").replace(/\s+/g, " ").trim();
+      } else {
+        cleanProp.tenantName = "";
       }
       
       if (cleanProp.tenantDni) {
-        cleanProp.tenantDni = cleanProp.tenantDni.trim().toUpperCase().replace(/[^A-Z0-9,\s]/g, "");
+        const tDniStr = String(cleanProp.tenantDni);
+        cleanProp.tenantDni = tDniStr.trim().toUpperCase().replace(/[^A-Z0-9,\s]/g, "");
         cleanProp.tenantDni = cleanProp.tenantDni.replace(/,+/g, ", ").replace(/\s+/g, " ").trim();
+      } else {
+        cleanProp.tenantDni = "";
       }
       
       // Parse all numeric fields
