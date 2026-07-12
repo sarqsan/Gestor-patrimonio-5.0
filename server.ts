@@ -305,51 +305,38 @@ async function startServer() {
       }
 
       const systemPrompt = `Eres un experto fiscal de la Agencia Tributaria Española (AEAT).
-Tu tarea es analizar la declaración de la renta de España (IRPF, Modelo 100, Borrador, Resumen de la Declaración o Datos Fiscales) y/o el documento de listado de inmuebles adjunto (Excel, CSV o PDF) de uno o dos contribuyentes (pareja/cónyuges) y extraer con precisión de cirujano la información sobre sus rentas del trabajo y sus inmuebles arrendados.
+Tu tarea es analizar la declaración de la renta de España (IRPF, Modelo 100, Borrador, Resumen de la Declaración o Datos Fiscales) y/o el documento de listado de inmuebles adjunto (Excel, CSV o PDF) de uno o dos contribuyentes (pareja/cónyuges) y extraer con la máxima precisión la información sobre sus rentas del trabajo y sus inmuebles arrendados.
 
-Sigue rigurosamente estas pautas para una extracción 100% precisa y libre de alucinaciones:
+Sigue rigurosamente estas pautas para una extracción 100% precisa, inteligente y libre de fallos:
 
 1. IDENTIFICACIÓN DE LOS CONTRIBUYENTES (USER 1 / USER 2):
-   - Extrae SIEMPRE con total prioridad el nombre y DNI del Declarante Principal (que irá en 'user1') y del Cónyuge (que irá en 'user2').
-   - El primer declarante, sujeto pasivo o titular que aparezca es 'user1'. El cónyuge o segundo declarante es 'user2'.
-   - Si no hay cónyuge ni segundo declarante, establece 'hasPartner': false.
-   - Limpia de forma absoluta cualquier ruido del nombre (como comas, puntos, guiones, barras, códigos o textos como 'DECLARANTE', 'CONYUGE'). El nombre debe ser un nombre natural (ej. 'YOLANDA SANCHEZ GOMEZ' o 'Yolanda Sánchez Gómez').
-   - El DNI/NIF debe tener sus 8 dígitos y la letra (ej. '12345678Z' o 'X1234567Y' para NIE). Si contiene "NIF" o "DNI" delante, quítalo.
+   - El primer declarante o titular que aparezca es 'user1'. El cónyuge o segundo declarante es 'user2'.
+   - Extrae el nombre completo y el DNI/NIF/NIE. Limpia textos sobrantes como "DECLARANTE", "S.PASIVO", "CÓNYUGE", "NIF:", etc.
+   - Si no hay cónyuge ni segundo declarante en el documento, establece 'hasPartner': false.
 
 2. RENDIMIENTOS DEL TRABAJO (Sueldos y salarios):
-   - Busca tanto en el 'Resumen de la declaración' (la tabla resumen con columnas 'Declarante', 'Cónyuge' y 'Conjunta') como en la sección detallada 'Rendimientos del trabajo'.
-   - Ingresos brutos ('brutoTrabajo'): 
-     * En la sección detallada, es la casilla 0012 ('Suma de rendimientos íntegros') o casilla 0003 ('Retribuciones en dinero').
-     * En la tabla de 'Resumen de la declaración', es la fila 'Rendimientos del trabajo' o 'Rendimientos íntegros del trabajo'.
-     * Extrae el valor correspondiente a la columna del declarante para 'user1' y del cónyuge para 'user2'. ¡No uses el de la columna conjunta!
-   - Rendimiento neto ('netoTrabajo'):
-     * En la sección detallada, es la casilla 0022 ('Rendimiento neto reducido') o casilla 0018 ('Rendimiento neto del trabajo').
-     * En el 'Resumen de la declaración', es la fila 'Rendimiento neto' o 'Rendimiento neto reducido del trabajo'.
+   - Extrae los ingresos brutos ('brutoTrabajo') de la Casilla 0012 ("Suma de rendimientos íntegros") o Casilla 0003 ("Retribuciones en dinero"), o de las columnas de la tabla resumen de la declaración.
+   - Extrae el rendimiento neto ('netoTrabajo') de la Casilla 0022 ("Rendimiento neto reducido") o Casilla 0018 ("Rendimiento neto del trabajo").
+   - Si no hay rendimientos del trabajo, pon "0".
 
 3. RENDIMIENTOS DEL CAPITAL INMOBILIARIO Y LISTADO DE INMUEBLES:
-   - IMPORTANTE: Si se adjunta un Listado de Inmuebles (Documento 3 en Excel, CSV o PDF), este listado es la fuente de verdad primaria para la lista de inmuebles, sus direcciones, referencias catastrales, alquileres mensuales y precios de compra.
-   - Si solo hay Declaraciones de Renta, extrae los inmuebles del apartado 'Rendimientos del capital inmobiliario' (bienes inmuebles arrendados).
+   - Extrae todos los inmuebles de la sección de arrendamientos (capital inmobiliario).
    - Por cada inmueble, extrae:
      * Dirección completa ('address').
-     * Referencia catastral ('cadastralReference'): Cadena alfanumérica de exactamente 20 caracteres (ej: '9872301VK4797S0003TR').
-     * Propietario ('owner'): 'user1', 'user2' o 'both' (si pertenece al 50% a cada uno, o indica titularidad compartida / cónyuge / compartida).
-     * Porcentajes ('ownershipPercentageUser1' y 'ownershipPercentageUser2'): Ej. 100 y 0, 0 y 100, o 50 y 50.
-     * Alquiler mensual ('monthlyRent'): Es el alquiler bruto percibido. 
-       - Si lo extraes de la Renta, la Casilla 0102 es ANUAL. ¡DEBES DIVIDIRLA ENTRE 12 para obtener el valor mensual! Si está al 50%, multiplícala por 2 antes para reflejar el 100% de la renta total del inmueble.
-       - Si figura en el listado de inmuebles (Documento 3), úsalo directamente (asegúrate de si es mensual o anual; si indica cantidades de ~500-2000, suele ser mensual. Si indica ~6000-24000, es anual y debes dividir entre 12).
-     * Precio de compra ('purchasePrice'): Extrae el valor de adquisición del inmueble. Si no figura, intenta estimarlo razonablemente o pon 0 si no hay ninguna indicación.
-     * Amortización anual ('amortizationAmount'): Es la Casilla 0115 de la Renta. Si no figura, estímala como el 3% del valor de construcción (el 75% del precio de compra).
-     * Datos del inquilino ('tenantName' y 'tenantDni'): Búscalos en los anexos de la renta (Casilla 0105 o datos del arrendatario) o en el listado de inmuebles. Extrae nombres y NIFs reales de los inquilinos.
-     * Gastos deducibles anuales al 100%: Comunidad ('expensesCommunity'), IBI ('expensesIBI', Casilla 0107), Seguro ('expensesInsurance'), y Reparaciones/Mantenimiento ('expensesRepairs', Casilla 0109). Si en la renta vienen prorrateados por tu porcentaje de propiedad, multiplícalos para reflejar el 100% del gasto total del inmueble.
+     * Referencia catastral ('cadastralReference'): Cadena alfanumérica de 20 caracteres. Si el documento tiene guiones o espacios, quítalos.
+     * Propietario ('owner'): 'user1', 'user2' o 'both' (si pertenece al 50% a cada uno, o se indica titularidad conjunta/cónyuge).
+     * Porcentajes de propiedad ('ownershipPercentageUser1' y 'ownershipPercentageUser2'): ej. "100" y "0", "0" y "100", o "50" y "50".
+     * Alquiler mensual ('monthlyRent'): Es la renta total de mercado del inmueble (100%).
+       - ¡REGLA DE ESCALADO DE INMUEBLES COMPARTIDOS (CRÍTICA)!: En la declaración de la renta individual de cada cónyuge, los importes se declaran de forma prorrateada (por ejemplo, al 50%). Si un inmueble pertenece al 50% a cada cónyuge, los ingresos anuales declarados de la Casilla 0102 corresponden al 50%. DEBES multiplicar la Casilla 0102 por 2 para reflejar el total anual del inmueble (100%), y luego dividirlo entre 12 para obtener el alquiler mensual correcto del inmueble.
+       - Si no se especifica explícitamente alquiler, estima el mensual dividiendo los ingresos anuales de la Casilla 0102 entre los meses de alquiler o entre 12, escalado al 100%.
+     * Datos del inquilino ('tenantName' y 'tenantDni'): Búscalos en la Casilla 0105, anexos o información adicional. Si hay varios inquilinos, sepáralos por comas. Si no constan, pon "".
+     * Precio de compra ('purchasePrice'): Extrae el valor de adquisición si consta. Si no consta, pon "0" o una estimación inteligente.
+     * Amortización anual ('amortizationAmount'): Es la Casilla 0115 de la Renta. Si viene prorrateada al 50%, multiplícala por 2 para representar el 100%. Si no figura, pon "0".
+     * Gastos deducibles anuales (IBI: Casilla 0107, Reparaciones: Casilla 0109, Seguros: Casilla 0110 o agrupación de seguros, Comunidad: Casilla 0104 o gastos de comunidad). Recuerda escalar todos estos gastos anuales al 100% de la propiedad si vienen prorrateados (multiplicándolos por 2 si la propiedad es del 50%).
 
-4. AUSENCIA DE DECLARACIONES DE RENTA O DATOS DE IDENTIDAD (MUY IMPORTANTE):
-   - Si NO se proporciona ningún documento de declaración de la renta (Documento 1 ni Documento 2), o si en los documentos aportados no constan explícitamente los nombres y DNIs de los contribuyentes:
-     * ¡ESTÁ TERMINANTEMENTE PROHIBIDO INVENTAR, ALUCINAR O ESTIMAR nombres o DNIs ficticios!
-     * Pon exactamente de nombre "Usuario 1" para 'user1' y su DNI en cadena vacía "".
-     * Pon exactamente de nombre "Usuario 2" para 'user2', su DNI en cadena vacía "" y establece 'hasPartner': false.
-     * Establece los campos de rentas del trabajo ('brutoTrabajo' y 'netoTrabajo') a "0" para ambos. No simules salarios.
-
-CRUZA Y COMBINA la información con sumo cuidado. Evita duplicar inmuebles. Asegúrate de que los importes numéricos corresponden al 100% del inmueble y que las cantidades de sueldos corresponden al año completo.`;
+4. TOLERANCIA Y ROBUSTEZ:
+   - Si no puedes encontrar o deducir un valor para campos opcionales como gastos, DNI del inquilino, nombre del inquilino o precio de compra, NO dejes de extraer el inmueble. Pon simplemente "0" o cadena vacía "" para esos campos opcionales, pero extrae siempre el inmueble si tiene dirección y/o referencia catastral.
+   - Si no hay cónyuge, omite los detalles de 'user2' o establécelos como vacíos de manera natural.`;
 
       const contents: any[] = [];
 
@@ -431,10 +418,10 @@ CRUZA Y COMBINA la información con sumo cuidado. Evita duplicar inmuebles. Aseg
                 properties: {
                   name: { type: Type.STRING, description: "Nombre completo del Contribuyente 1" },
                   dni: { type: Type.STRING, description: "DNI o NIF del Contribuyente 1" },
-                  brutoTrabajo: { type: Type.STRING, description: "Rendimientos íntegros del trabajo anuales (bruto) de User 1 (ej: '36200.50' o '36.200,00' o '36200')" },
-                  netoTrabajo: { type: Type.STRING, description: "Rendimiento neto de trabajo anual de User 1 (ej: '30120.00' o '30.120,50')" }
+                  brutoTrabajo: { type: Type.STRING, description: "Rendimientos íntegros del trabajo anuales (bruto) de User 1" },
+                  netoTrabajo: { type: Type.STRING, description: "Rendimiento neto de trabajo anual de User 1" }
                 },
-                required: ["name", "dni", "brutoTrabajo", "netoTrabajo"]
+                required: ["name"]
               },
               user2: {
                 type: Type.OBJECT,
@@ -443,9 +430,9 @@ CRUZA Y COMBINA la información con sumo cuidado. Evita duplicar inmuebles. Aseg
                   dni: { type: Type.STRING, description: "DNI o NIF del Contribuyente 2" },
                   brutoTrabajo: { type: Type.STRING, description: "Rendimientos íntegros del trabajo anuales (bruto) de User 2" },
                   netoTrabajo: { type: Type.STRING, description: "Rendimiento neto de trabajo anual de User 2" },
-                  hasPartner: { type: Type.BOOLEAN, description: "Indica si se ha detectado cónyuge o pareja en el documento" }
+                  hasPartner: { type: Type.BOOLEAN, description: "Indica si se ha detectado cónyuge o pareja" }
                 },
-                required: ["name", "dni", "brutoTrabajo", "netoTrabajo", "hasPartner"]
+                required: ["name", "hasPartner"]
               },
               properties: {
                 type: Type.ARRAY,
@@ -455,25 +442,25 @@ CRUZA Y COMBINA la información con sumo cuidado. Evita duplicar inmuebles. Aseg
                   properties: {
                     address: { type: Type.STRING, description: "Dirección o emplazamiento del inmueble" },
                     cadastralReference: { type: Type.STRING, description: "Referencia Catastral (20 caracteres)" },
-                    owner: { type: Type.STRING, description: "Quién es el dueño: 'user1', 'user2' o 'both'" },
-                    ownershipPercentageUser1: { type: Type.STRING, description: "Porcentaje de propiedad del Contribuyente 1 (0-100) (ej: '50' o '100')" },
-                    ownershipPercentageUser2: { type: Type.STRING, description: "Porcentaje de propiedad del Contribuyente 2 / Cónyuge (0-100) (ej: '50' o '0')" },
-                    tenantName: { type: Type.STRING, description: "Nombres completos de TODOS los inquilinos, separados por comas (ej. 'Juan Pérez, María Gómez')" },
-                    tenantDni: { type: Type.STRING, description: "NIF/DNI de TODOS los inquilinos, en el mismo orden y separados por comas (ej. '12345678Z, 87654321X')" },
-                    monthlyRent: { type: Type.STRING, description: "Importe del alquiler mensual (si es anual, divídelo entre 12. Ej: '800' o '800.50')" },
-                    purchasePrice: { type: Type.STRING, description: "Precio de compra o coste de adquisición del inmueble" },
-                    landValuePercent: { type: Type.STRING, description: "Porcentaje catastral asignado al suelo (habitualmente entre 20% y 30%). Por defecto '25'" },
-                    amortizationAmount: { type: Type.STRING, description: "Importe de amortización deducible anual (usar el del texto o estimar el 3% del valor de construcción)" },
-                    expensesCommunity: { type: Type.STRING, description: "Gastos anuales estimados de comunidad" },
-                    expensesIBI: { type: Type.STRING, description: "Gastos anuales estimados de IBI (Impuesto de Bienes Inmuebles)" },
-                    expensesInsurance: { type: Type.STRING, description: "Gastos anuales de seguro de hogar / impago" },
-                    expensesRepairs: { type: Type.STRING, description: "Gastos anuales de mantenimiento o reparaciones" }
+                    owner: { type: Type.STRING, description: "Propietario: 'user1', 'user2' o 'both'" },
+                    ownershipPercentageUser1: { type: Type.STRING, description: "Porcentaje de propiedad del Contribuyente 1 (0-100)" },
+                    ownershipPercentageUser2: { type: Type.STRING, description: "Porcentaje de propiedad del Contribuyente 2 / Cónyuge (0-100)" },
+                    tenantName: { type: Type.STRING, description: "Nombres completos de los inquilinos" },
+                    tenantDni: { type: Type.STRING, description: "NIF/DNI de los inquilinos" },
+                    monthlyRent: { type: Type.STRING, description: "Importe del alquiler mensual total (100% de la propiedad)" },
+                    purchasePrice: { type: Type.STRING, description: "Precio de compra o coste de adquisición" },
+                    landValuePercent: { type: Type.STRING, description: "Porcentaje catastral del suelo (ej: '25')" },
+                    amortizationAmount: { type: Type.STRING, description: "Importe de amortización anual total (100% de la propiedad)" },
+                    expensesCommunity: { type: Type.STRING, description: "Gastos anuales totales de comunidad (100%)" },
+                    expensesIBI: { type: Type.STRING, description: "Gastos anuales totales de IBI (100%)" },
+                    expensesInsurance: { type: Type.STRING, description: "Gastos anuales totales de seguro (100%)" },
+                    expensesRepairs: { type: Type.STRING, description: "Gastos anuales totales de mantenimiento/reparaciones (100%)" }
                   },
-                  required: ["address", "cadastralReference", "owner", "tenantName", "tenantDni", "monthlyRent", "purchasePrice", "landValuePercent", "amortizationAmount"]
+                  required: ["address", "cadastralReference"]
                 }
               }
             },
-            required: ["user1", "user2", "properties"]
+            required: ["user1", "properties"]
           }
         },
         "gemini-3.5-flash"
